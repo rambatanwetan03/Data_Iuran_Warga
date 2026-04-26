@@ -13,21 +13,43 @@
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
         body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
         .card { background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        .admin-only { display: none; }
     </style>
 </head>
 <body class="p-4 md:p-8">
 
     <div class="max-w-5xl mx-auto">
-        <!-- Header -->
-        <header class="mb-8 text-center md:text-left">
-            <h1 class="text-3xl font-bold text-blue-800">Iuran Kolektif Warga</h1>
-            <p class="text-gray-600 font-medium">RT 14 Singa Dangdut (Cloud Sync)</p>
+        <!-- Header & Login Status -->
+        <header class="mb-8 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="text-center md:text-left">
+                <h1 class="text-3xl font-bold text-blue-800">Iuran Kolektif Warga</h1>
+                <p class="text-gray-600 font-medium">RT 14 Singa Dangdut (Cloud Sync)</p>
+            </div>
+            <div id="authSection" class="flex items-center gap-2">
+                <div id="loginForm" class="flex flex-wrap md:flex-nowrap gap-2 items-center">
+                    <input type="text" id="userLogin" placeholder="Username" class="text-xs p-2 border rounded w-24">
+                    <div class="relative">
+                        <input type="password" id="passLogin" placeholder="Password" class="text-xs p-2 border rounded w-32 pr-8">
+                        <button onclick="togglePassword()" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700">
+                            <svg id="eyeIcon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.644C3.483 8.633 7.07 6.375 12 6.375s8.517 2.258 9.964 5.303a1.012 1.012 0 010 .644C20.517 15.367 16.93 17.625 12 17.625s-8.517-2.258-9.964-5.303z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                        </button>
+                    </div>
+                    <button onclick="handleLogin()" class="bg-blue-600 text-white text-xs px-4 py-2 rounded hover:bg-blue-700">Login Admin</button>
+                </div>
+                <div id="adminStatus" class="hidden flex items-center gap-3">
+                    <span class="text-sm font-semibold text-green-600">● Admin Aktif (RT14)</span>
+                    <button onclick="handleLogout()" class="text-xs text-red-500 underline">Logout</button>
+                </div>
+            </div>
         </header>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <!-- Form Section -->
-            <div class="lg:col-span-1">
-                <div class="card p-6 sticky top-8">
+            <!-- Form Section (Admin Only) -->
+            <div class="lg:col-span-1 admin-only" id="formWrapper">
+                <div class="card p-6 sticky top-8 border-t-4 border-blue-600">
                     <h2 class="text-xl font-semibold mb-4 text-gray-800">Input Data Iuran</h2>
                     <form id="iuranForm" class="space-y-4">
                         <div>
@@ -52,7 +74,7 @@
             </div>
 
             <!-- List Section -->
-            <div class="lg:col-span-2">
+            <div id="tableWrapper" class="lg:col-span-3">
                 <div class="card p-6 overflow-hidden">
                     <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
                         <h2 class="text-xl font-semibold text-gray-800">Rekapitulasi Pembayaran</h2>
@@ -60,7 +82,7 @@
                             <button onclick="downloadPDF()" class="bg-red-500 text-white text-xs px-3 py-2 rounded hover:bg-red-600 transition">PDF</button>
                             <button onclick="downloadExcel()" class="bg-green-600 text-white text-xs px-3 py-2 rounded hover:bg-green-700 transition">Excel</button>
                             <button onclick="downloadWord()" class="bg-blue-500 text-white text-xs px-3 py-2 rounded hover:bg-blue-600 transition">Word</button>
-                            <button onclick="clearData()" class="bg-gray-400 text-white text-xs px-3 py-2 rounded hover:bg-gray-500 transition">Reset</button>
+                            <button onclick="clearData()" class="bg-gray-400 text-white text-xs px-3 py-2 rounded hover:bg-gray-500 transition admin-only">Reset</button>
                         </div>
                     </div>
 
@@ -72,7 +94,7 @@
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Bayar</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sisa</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Aksi</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase admin-only">Aksi</th>
                                 </tr>
                             </thead>
                             <tbody id="tableBody" class="bg-white divide-y divide-gray-200">
@@ -99,13 +121,14 @@
 
     <script>
         // --- KONFIGURASI SUPABASE ---
-        // Silakan isi dengan URL dan API Key Anda sendiri
         const SUPABASE_URL = "https://rkjcysiyvqcotxhokuvd.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJramN5c2l5dnFjb3R4aG9rdXZkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMzE0MzcsImV4cCI6MjA5MjcwNzQzN30.H-z6AV142yBvUtiGXT2T2NH10jlqhSdjyH0uGSW3nhc";
+        const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJramN5c2l5dnFjb3R4aG9rdXZkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMzE0MzcsImV4cCI6MjA5MjcwNzQzN30.H-z6AV142yBvUtiGXT2T2NH10jlqhSdjyH0uGSW3nhc";
 
-const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-let dataWarga = [];
+        let dataWarga = [];
+        let isAdmin = false;
+
         const form = document.getElementById('iuranForm');
         const tableBody = document.getElementById('tableBody');
         const emptyState = document.getElementById('emptyState');
@@ -113,29 +136,79 @@ let dataWarga = [];
         const notification = document.getElementById('notification');
         const submitBtn = document.getElementById('submitBtn');
 
-        // Fungsi Ambil Data dari Supabase
+        // --- SISTEM LOGIN & UI ---
+        function togglePassword() {
+            const passInput = document.getElementById('passLogin');
+            const eyeIcon = document.getElementById('eyeIcon');
+            if (passInput.type === 'password') {
+                passInput.type = 'text';
+                eyeIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />';
+            } else {
+                passInput.type = 'password';
+                eyeIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.644C3.483 8.633 7.07 6.375 12 6.375s8.517 2.258 9.964 5.303a1.012 1.012 0 010 .644C20.517 15.367 16.93 17.625 12 17.625s-8.517-2.258-9.964-5.303z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />';
+            }
+        }
+
+        function handleLogin() {
+            const user = document.getElementById('userLogin').value;
+            const pass = document.getElementById('passLogin').value;
+
+            if (user === "RT14" && pass === "Lebulama") {
+                isAdmin = true;
+                updateUIAccess();
+                showNotification("Login Berhasil sebagai Admin");
+            } else {
+                showNotification("Username atau Password Salah", "bg-red-600");
+            }
+        }
+
+        function handleLogout() {
+            isAdmin = false;
+            document.getElementById('userLogin').value = '';
+            document.getElementById('passLogin').value = '';
+            updateUIAccess();
+            showNotification("Logout Berhasil");
+        }
+
+        function updateUIAccess() {
+            const adminElements = document.querySelectorAll('.admin-only');
+            const loginForm = document.getElementById('loginForm');
+            const adminStatus = document.getElementById('adminStatus');
+            const tableWrapper = document.getElementById('tableWrapper');
+
+            if (isAdmin) {
+                adminElements.forEach(el => el.style.display = 'block');
+                loginForm.classList.add('hidden');
+                adminStatus.classList.remove('hidden');
+                tableWrapper.classList.replace('lg:col-span-3', 'lg:col-span-2');
+            } else {
+                adminElements.forEach(el => el.style.display = 'none');
+                loginForm.classList.remove('hidden');
+                adminStatus.classList.add('hidden');
+                tableWrapper.classList.replace('lg:col-span-2', 'lg:col-span-3');
+            }
+            renderTable();
+        }
+
+        // Fungsi Ambil Data
         async function fetchWarga() {
-    loadingState.classList.remove('hidden');
+            loadingState.classList.remove('hidden');
+            const { data, error } = await supabaseClient
+                .from('iuran_warga')
+                .select('*')
+                .order('created_at', { ascending: false });
 
-    const { data, error } = await supabaseClient
-        .from('iuran_warga')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-    loadingState.classList.add('hidden');
-
-    if (error) {
-        console.error("Gagal ambil data:", error);
-        return;
-    }
-
-    dataWarga = data || [];
-    renderTable();
-}
+            loadingState.classList.add('hidden');
+            if (error) {
+                console.error("Gagal ambil data:", error);
+                return;
+            }
+            dataWarga = data || [];
+            renderTable();
+        }
 
         function renderTable() {
             tableBody.innerHTML = '';
-            
             if (dataWarga.length === 0) {
                 emptyState.classList.remove('hidden');
             } else {
@@ -156,9 +229,10 @@ let dataWarga = [];
                             <td class="px-4 py-4 whitespace-nowrap">
                                 <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusClass}">${status}</span>
                             </td>
+                            ${isAdmin ? `
                             <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
                                 <button onclick="hapusData('${item.id}')" class="text-red-600 hover:text-red-900">Hapus</button>
-                            </td>
+                            </td>` : ''}
                         </tr>
                     `;
                     tableBody.innerHTML += row;
@@ -168,6 +242,8 @@ let dataWarga = [];
 
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
+            if (!isAdmin) return;
+
             submitBtn.disabled = true;
             submitBtn.textContent = "Menyimpan...";
 
@@ -186,16 +262,16 @@ let dataWarga = [];
             submitBtn.textContent = "Simpan Data";
 
             if (error) {
-                console.error("Gagal simpan:", error);
                 showNotification("Gagal menyimpan ke server", "bg-red-600");
             } else {
                 form.reset();
                 showNotification("Data warga berhasil ditambahkan");
-                fetchWarga(); // Refresh tabel
+                fetchWarga();
             }
         });
 
         async function hapusData(id) {
+            if(!isAdmin) return;
             if(confirm("Hapus data ini dari database permanen?")) {
                 const { error } = await supabaseClient
                     .from('iuran_warga')
@@ -212,11 +288,12 @@ let dataWarga = [];
         }
 
         async function clearData() {
+            if(!isAdmin) return;
             if(confirm("Hapus seluruh data iuran di server? Tindakan ini tidak bisa dibatalkan.")) {
                 const { error } = await supabaseClient
                     .from('iuran_warga')
                     .delete()
-                    .neq('id', '0'); // Hapus semua
+                    .neq('id', '0');
 
                 if (error) {
                     showNotification("Gagal membersihkan data", "bg-red-600");
@@ -237,7 +314,6 @@ let dataWarga = [];
         }
 
         // --- Export Functions ---
-
         function downloadPDF() {
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF();
@@ -252,7 +328,7 @@ let dataWarga = [];
                 item.keterangan || '-'
             ]);
             doc.autoTable({ head: [['Nama Warga', 'Bayar', 'Sisa', 'Status', 'Keterangan']], body: tableData, startY: 30 });
-            doc.save("Iuran_RT14_Supabase.pdf");
+            doc.save("Iuran_RT14.pdf");
         }
 
         function downloadExcel() {
@@ -260,7 +336,7 @@ let dataWarga = [];
             dataWarga.forEach(item => {
                 const sisa = Math.max(0, item.target - item.bayar);
                 const status = sisa <= 0 ? 'Lunas' : 'Cicil';
-                csv += `${item.nama},${item.bayar},${sisa},${status},${item.keterangan || '-'}\n`;
+                csv += `"${item.nama}",${item.bayar},${sisa},${status},"${item.keterangan || '-'}"\n`;
             });
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement("a");
@@ -284,7 +360,6 @@ let dataWarga = [];
             link.click();
         }
 
-        // Jalankan saat halaman dibuka
         fetchWarga();
     </script>
 </body>
