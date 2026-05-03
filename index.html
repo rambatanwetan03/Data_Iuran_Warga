@@ -100,6 +100,26 @@
                             <button type="button" id="cancelEdit" onclick="resetForm()" class="hidden w-full bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg hover:bg-gray-300 transition">Batal Edit</button>
                         </div>
                     </form>
+
+                    <!-- Advanced Admin Tools -->
+                    <div class="mt-8 pt-6 border-t border-gray-100 space-y-3">
+                        <p class="text-xs font-bold text-gray-400 uppercase">Data Tools (Admin)</p>
+                        <button onclick="backupData()" class="w-full text-left flex items-center gap-2 text-xs bg-gray-50 p-2 rounded hover:bg-gray-100 text-gray-600">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
+                            Backup Data (JSON)
+                        </button>
+                        <div class="relative">
+                            <input type="file" id="restoreFile" onchange="restoreData(event)" class="hidden" accept=".json">
+                            <button onclick="document.getElementById('restoreFile').click()" class="w-full text-left flex items-center gap-2 text-xs bg-gray-50 p-2 rounded hover:bg-gray-100 text-gray-600">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                                Restore Data (JSON)
+                            </button>
+                        </div>
+                        <button onclick="clearData()" class="w-full text-left flex items-center gap-2 text-xs bg-red-50 p-2 rounded hover:bg-red-100 text-red-600">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                            Reset Semua Data
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -112,7 +132,6 @@
                             <button onclick="downloadPDF()" class="bg-red-500 text-white text-xs px-3 py-2 rounded hover:bg-red-600 transition">PDF</button>
                             <button onclick="downloadExcel()" class="bg-green-600 text-white text-xs px-3 py-2 rounded hover:bg-green-700 transition">Excel</button>
                             <button onclick="downloadWord()" class="bg-blue-500 text-white text-xs px-3 py-2 rounded hover:bg-blue-600 transition">Word</button>
-                            <button onclick="clearData()" class="bg-gray-400 text-white text-xs px-3 py-2 rounded hover:bg-gray-500 transition admin-only">Reset</button>
                         </div>
                     </div>
 
@@ -268,8 +287,8 @@
         }
 
         function updateSummary() {
-            const totalBayar = dataWarga.reduce((sum, item) => sum + item.bayar, 0);
-            const totalSisa = dataWarga.reduce((sum, item) => sum + Math.max(0, item.target - item.bayar), 0);
+            const totalBayar = dataWarga.reduce((sum, item) => sum + (item.bayar || 0), 0);
+            const totalSisa = dataWarga.reduce((sum, item) => sum + Math.max(0, (item.target || 0) - (item.bayar || 0)), 0);
             
             document.getElementById('totalBayar').textContent = `Rp ${totalBayar.toLocaleString()}`;
             document.getElementById('totalSisa').textContent = `Rp ${totalSisa.toLocaleString()}`;
@@ -307,12 +326,11 @@
                     tableBody.innerHTML += row;
                 });
             }
-            // Trigger filter ulang setelah render jika ada teks di input pencarian
             filterTable();
         }
 
         function siapkanEdit(id) {
-            const item = dataWarga.find(w => w.id === id);
+            const item = dataWarga.find(w => w.id == id);
             if (!item) return;
 
             isEditing = true;
@@ -399,7 +417,7 @@
                 const { error } = await supabaseClient
                     .from('iuran_warga')
                     .delete()
-                    .neq('id', '0');
+                    .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all
 
                 if (error) {
                     showNotification("Gagal membersihkan data", "bg-red-600");
@@ -410,9 +428,64 @@
             }
         }
 
+        // --- NEW: BACKUP & RESTORE FUNCTIONS ---
+        function backupData() {
+            if (!isAdmin) return;
+            if (dataWarga.length === 0) {
+                showNotification("Tidak ada data untuk dibackup", "bg-yellow-600");
+                return;
+            }
+            const dataStr = JSON.stringify(dataWarga, null, 2);
+            const blob = new Blob([dataStr], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = `Backup_Iuran_RT14_${new Date().toISOString().split('T')[0]}.json`;
+            link.click();
+            showNotification("Backup berhasil diunduh");
+        }
+
+        async function restoreData(event) {
+            if (!isAdmin) return;
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const importedData = JSON.parse(e.target.result);
+                    if (!Array.isArray(importedData)) throw new Error("Format tidak valid");
+
+                    if (confirm(`Apakah Anda yakin ingin memulihkan ${importedData.length} data? Data yang ada di server saat ini TIDAK akan dihapus, data baru akan ditambahkan.`)) {
+                        // Bersihkan properti ID dan metadata supabase agar dianggap sebagai baris baru
+                        const cleanData = importedData.map(item => ({
+                            nama: item.nama,
+                            target: item.target,
+                            bayar: item.bayar,
+                            keterangan: item.keterangan
+                        }));
+
+                        const { error } = await supabaseClient
+                            .from('iuran_warga')
+                            .insert(cleanData);
+
+                        if (error) throw error;
+
+                        showNotification("Restore data berhasil!");
+                        fetchWarga();
+                    }
+                } catch (err) {
+                    console.error(err);
+                    showNotification("Gagal memproses file backup", "bg-red-600");
+                }
+                event.target.value = ''; // Reset input file
+            };
+            reader.readAsText(file);
+        }
+
         function showNotification(msg, color = "bg-green-600") {
             notification.textContent = msg;
-            notification.className = `fixed bottom-4 right-4 text-white px-6 py-3 rounded-lg shadow-lg transform transition-transform duration-300 ${color}`;
+            notification.className = `fixed bottom-4 right-4 text-white px-6 py-3 rounded-lg shadow-lg transform transition-transform duration-300 z-50 ${color}`;
             notification.classList.remove('translate-y-20');
             setTimeout(() => {
                 notification.classList.add('translate-y-20');
