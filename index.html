@@ -46,12 +46,39 @@
             </div>
         </header>
 
+        <!-- Total Pemasukan Card (Semua Akses) -->
+        <div class="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="card p-4 border-l-4 border-green-500 flex justify-between items-center">
+                <div>
+                    <p class="text-xs text-gray-500 uppercase font-bold">Total Pemasukan</p>
+                    <h3 id="totalBayar" class="text-2xl font-bold text-gray-800">Rp 0</h3>
+                </div>
+                <div class="bg-green-100 p-2 rounded-full">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+            </div>
+            <div class="card p-4 border-l-4 border-red-500 flex justify-between items-center">
+                <div>
+                    <p class="text-xs text-gray-500 uppercase font-bold">Total Sisa Tagihan</p>
+                    <h3 id="totalSisa" class="text-2xl font-bold text-gray-800">Rp 0</h3>
+                </div>
+                <div class="bg-red-100 p-2 rounded-full">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+            </div>
+        </div>
+
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <!-- Form Section (Admin Only) -->
             <div class="lg:col-span-1 admin-only" id="formWrapper">
                 <div class="card p-6 sticky top-8 border-t-4 border-blue-600">
-                    <h2 class="text-xl font-semibold mb-4 text-gray-800">Input Data Iuran</h2>
+                    <h2 id="formTitle" class="text-xl font-semibold mb-4 text-gray-800">Input Data Iuran</h2>
                     <form id="iuranForm" class="space-y-4">
+                        <input type="hidden" id="editId">
                         <div>
                             <label class="block text-sm font-medium text-gray-700">Nama Warga</label>
                             <input type="text" id="nama" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border">
@@ -68,7 +95,10 @@
                             <label class="block text-sm font-medium text-gray-700">Keterangan</label>
                             <textarea id="keterangan" rows="2" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border" placeholder="Catatan tambahan..."></textarea>
                         </div>
-                        <button type="submit" id="submitBtn" class="w-full bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 transition">Simpan Data</button>
+                        <div class="flex flex-col gap-2">
+                            <button type="submit" id="submitBtn" class="w-full bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 transition">Simpan Data</button>
+                            <button type="button" id="cancelEdit" onclick="resetForm()" class="hidden w-full bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg hover:bg-gray-300 transition">Batal Edit</button>
+                        </div>
                     </form>
                 </div>
             </div>
@@ -128,6 +158,7 @@
 
         let dataWarga = [];
         let isAdmin = false;
+        let isEditing = false;
 
         const form = document.getElementById('iuranForm');
         const tableBody = document.getElementById('tableBody');
@@ -164,6 +195,7 @@
 
         function handleLogout() {
             isAdmin = false;
+            resetForm();
             document.getElementById('userLogin').value = '';
             document.getElementById('passLogin').value = '';
             updateUIAccess();
@@ -204,7 +236,16 @@
                 return;
             }
             dataWarga = data || [];
+            updateSummary();
             renderTable();
+        }
+
+        function updateSummary() {
+            const totalBayar = dataWarga.reduce((sum, item) => sum + item.bayar, 0);
+            const totalSisa = dataWarga.reduce((sum, item) => sum + Math.max(0, item.target - item.bayar), 0);
+            
+            document.getElementById('totalBayar').textContent = `Rp ${totalBayar.toLocaleString()}`;
+            document.getElementById('totalSisa').textContent = `Rp ${totalSisa.toLocaleString()}`;
         }
 
         function renderTable() {
@@ -230,7 +271,8 @@
                                 <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusClass}">${status}</span>
                             </td>
                             ${isAdmin ? `
-                            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <td class="px-4 py-4 whitespace-nowrap text-sm font-medium flex gap-3">
+                                <button onclick="siapkanEdit('${item.id}')" class="text-blue-600 hover:text-blue-900">Edit</button>
                                 <button onclick="hapusData('${item.id}')" class="text-red-600 hover:text-red-900">Hapus</button>
                             </td>` : ''}
                         </tr>
@@ -240,32 +282,67 @@
             }
         }
 
+        function siapkanEdit(id) {
+            const item = dataWarga.find(w => w.id === id);
+            if (!item) return;
+
+            isEditing = true;
+            document.getElementById('editId').value = item.id;
+            document.getElementById('nama').value = item.nama;
+            document.getElementById('target').value = item.target;
+            document.getElementById('bayar').value = item.bayar;
+            document.getElementById('keterangan').value = item.keterangan || '';
+            
+            document.getElementById('formTitle').textContent = "Edit Data Iuran";
+            document.getElementById('submitBtn').textContent = "Update Data";
+            document.getElementById('cancelEdit').classList.remove('hidden');
+            
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function resetForm() {
+            isEditing = false;
+            form.reset();
+            document.getElementById('editId').value = '';
+            document.getElementById('formTitle').textContent = "Input Data Iuran";
+            document.getElementById('submitBtn').textContent = "Simpan Data";
+            document.getElementById('cancelEdit').classList.add('hidden');
+        }
+
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
             if (!isAdmin) return;
 
             submitBtn.disabled = true;
-            submitBtn.textContent = "Menyimpan...";
+            submitBtn.textContent = isEditing ? "Mengupdate..." : "Menyimpan...";
 
-            const newData = {
+            const id = document.getElementById('editId').value;
+            const payload = {
                 nama: document.getElementById('nama').value,
                 target: parseFloat(document.getElementById('target').value),
                 bayar: parseFloat(document.getElementById('bayar').value),
                 keterangan: document.getElementById('keterangan').value
             };
 
-            const { error } = await supabaseClient
-                .from('iuran_warga')
-                .insert([newData]);
+            let result;
+            if (isEditing) {
+                result = await supabaseClient
+                    .from('iuran_warga')
+                    .update(payload)
+                    .eq('id', id);
+            } else {
+                result = await supabaseClient
+                    .from('iuran_warga')
+                    .insert([payload]);
+            }
 
             submitBtn.disabled = false;
-            submitBtn.textContent = "Simpan Data";
 
-            if (error) {
-                showNotification("Gagal menyimpan ke server", "bg-red-600");
+            if (result.error) {
+                showNotification("Gagal memproses data", "bg-red-600");
             } else {
-                form.reset();
-                showNotification("Data warga berhasil ditambahkan");
+                showNotification(isEditing ? "Data berhasil diupdate" : "Data berhasil disimpan");
+                resetForm();
                 fetchWarga();
             }
         });
